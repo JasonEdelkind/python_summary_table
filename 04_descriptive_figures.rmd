@@ -1,0 +1,544 @@
+---
+title: "04_descriptive_figures"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    self_contained: TRUE
+    df_print: paged
+editor_options: 
+  markdown: 
+    wrap: sentence
+  chunk_output_type: inline
+---
+
+```{r loading libraries, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(tidyverse)
+library(gtsummary)
+library(gt)
+library(flextable)
+library(kableExtra)
+library(knitr)
+library(hrbrthemes)
+library(viridis)
+
+opts_knit$set(global.par = TRUE)
+
+```
+
+```{r reading in the data, include=FALSE}
+removal_PSRP<-read.csv(".\\data\\removal_PSRP.csv")
+removal_RBNERR<-read.csv(".\\data\\removal_RBNERR.csv")
+
+removal_PSRP$Date<-as.Date(removal_PSRP$Date,format="%m/%d/%Y")
+removal_PSRP$Year<-ifelse(removal_PSRP$Year=="2019","2024",removal_PSRP$Year)
+```
+
+
+```{r adding a season column, include=FALSE}
+#add a season column for both the   removal dataframes
+#define a function to identify the breeding season
+season<-function(x){ifelse(
+  x[['Date']] >= ymd(paste0(x[['Year']],"-01-01")) & 
+    x[['Date']] <= ymd(paste0(x[['Year']],"-10-14")),
+  paste(as.numeric(x[['Year']])-1,"-",x[['Year']],sep=""), 
+  paste(x[['Year']],"-",as.numeric(x[['Year']])+1,sep=""))
+}
+
+#apply the function
+removal_PSRP$season<-apply(removal_PSRP, 1, season)
+removal_RBNERR$season<-apply(removal_RBNERR, 1, season)
+
+```
+
+<br>
+
+# PSRP Graphics
+
+<br>
+ 
+```{r PSRP Boxplot of Python SVL by Sex, echo=FALSE, warning=FALSE,message=FALSE}
+
+#PSRP Removal Graphics
+
+# add sample size column and create axis label column
+sample_size = removal_PSRP %>% group_by(Sex) %>% summarize(num=n())
+
+removal_PSRP<-removal_PSRP %>%
+  left_join(sample_size) %>%
+  mutate(myaxis = as.factor(paste0(Sex, "\n", "n=", num))) %>% 
+  mutate( type=ifelse(Sex=="Male","Highlighted","Normal"))
+
+#releveling factors so road cruising is first
+removal_PSRP$myaxis <- factor(removal_PSRP$myaxis, levels = c('Female\nn=67', 'Male\nn=49'))
+
+#releveling factors so male is first
+#removal_PSRP$Sex<-as.factor(removal_PSRP$Sex)
+#removal_PSRP$Sex<-factor(removal_PSRP$Sex, levels = c("Male", "Female"))
+
+#boxplot of method by svl grouped by sex
+bp<-removal_PSRP %>% 
+  filter(Sex!=is.na(Sex))%>%   #remove NA values from sex 
+  ggplot()+
+  aes(x=myaxis,y=SVL_cm, fill=Sex, na.rm=TRUE)+
+  geom_boxplot(width = 0.6,position = position_dodge(width = 0))+
+  geom_text(x=1.42, y=373, label="median SVL\n = 373 cm",size=3)+
+  geom_text(x=2.42, y=280, label="median SVL\n = 280 cm",size=3)+
+  scale_fill_viridis_d(option="turbo")+                                #specify viridis turbo palette
+  #scale_alpha_manual(values=c(1,0.1))+
+  labs(y="SVL (cm)",x="Sex",title="PSRP Python Removals by Sex 2021-2025")+
+  scale_fill_manual(name='Sex',                                          
+                    breaks=c('Female','Male'),
+                    values=c('Female'="pink",'Male'="skyblue"))+
+  scale_alpha_manual(values=c(1,1))+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(size=10),   #change x axis text size
+        legend.position="none",
+        axis.title.y = element_text(size=15, vjust=2),
+        axis.title.x = element_text(size=15, vjust=-1),
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        plot.title = element_text(hjust = 0.5)
+  )
+
+bp
+ggsave(filename="PSRP.boxplot.jpg",width = 180, height = 180, dpi=300, units = "mm",path= "./images")
+
+```
+
+<br>
+ 
+```{r PSRP barplot of python removals by month, echo=FALSE, warning=FALSE,message=FALSE}
+
+
+# removals over time
+removal_PSRP$Date<-as.Date(removal_PSRP$Date,format="%Y-%m-%d")
+removal_PSRP$month<-base::format(removal_PSRP$Date, format="%B")
+
+#releveling month factors
+removal_PSRP$month<-as.factor(removal_PSRP$month)
+removal_PSRP$month<-factor(removal_PSRP$month, levels = c("January", "February","March","April","May","June","July","August","September","October","November","December"))
+
+
+hist.m<-removal_PSRP %>% 
+  ggplot(aes(x=month,fill="brown",color="black"))+
+  geom_histogram(stat="count")+
+  scale_x_discrete(drop=FALSE) + 
+  scale_fill_discrete(drop=FALSE) +
+  scale_fill_manual(values="#7A0403FF")+
+  scale_color_manual(values="black")+
+  scale_y_continuous(expand =  expansion(mult = c(0, 0.05)))+
+  labs(x="Month",y="Count",title="PSRP Python Removals by Month 2021-2025")+
+  theme_bw()+
+  theme(axis.text.x = element_text(size=10, angle=45,vjust = .5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position="none",
+        plot.title = element_text(hjust = 0.5),
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+hist.m
+```
+
+<br>
+
+```{r PSRP barplot of breeding season python removal, echo=FALSE, warning=FALSE,message=FALSE}
+removal_PSRP$day<-yday(removal_PSRP$Date)
+
+
+removal_PSRP$day<-as.numeric(removal_PSRP$day)
+removal_PSRP$day2<-ifelse(removal_PSRP$day>=288,(removal_PSRP$day-288),(removal_PSRP$day+78))
+removal_PSRP$day2<-as.numeric(removal_PSRP$day2)
+
+
+hist.y<-removal_PSRP %>% filter(removal_PSRP$day2<=184) %>% 
+  ggplot(aes(x=day2,fill="brown",color="black"))+
+  geom_histogram(binwidth=7)+
+  #scale_x_discrete()+
+  #scale_x_discrete(drop=FALSE) +
+  scale_fill_discrete(drop=FALSE) +
+  scale_fill_manual(values="#7A0403FF")+
+  scale_color_manual(values="black")+
+  scale_y_continuous(expand =  expansion(mult = c(0, 0.05)))+
+  scale_x_continuous(breaks=c(1,32,61,93,124,153,184), labels=c("Oct. 15","Nov.15","Dec.15","Jan.15","Feb.15","Mar.15","Apr.15"),limits=c(1,190))+
+  labs(x="Day",y="Count",title="PSRP Python Removals by Calendar Day 2021-2025")+
+  theme_bw()+
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position="none",
+    plot.title = element_text(hjust = 0.5),
+    axis.line = element_line(colour = "black"),
+    #axis.text.x=element_blank(),
+    #axis.ticks.x=element_blank()
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  )
+hist.y
+ggsave(filename="PSRP.histogram.jpg",width = 180, height = 180, dpi=300, units = "mm",path= "./images")
+
+```
+
+<br>
+
+```{r PSRP histogram of python removals across years, echo=FALSE, warning=FALSE,message=FALSE}
+
+hist.mult.scout<-removal_PSRP %>% filter( removal_PSRP$Date>2013-01-01) %>% 
+  ggplot(aes(x=Date,fill="#7A0403FF",color="black"))+
+  geom_histogram(binwidth=61,width=75)+
+  #scale_x_discrete()+
+  #scale_x_discrete(drop=FALSE) +
+  scale_fill_discrete(drop=FALSE) +
+  scale_fill_manual(values="#7A0403FF")+                                #specify viridis turbo palette
+  scale_color_manual(values="black")+
+  scale_y_continuous(expand =  expansion(mult = c(0, 0.05)))+
+  scale_x_date(labels = scales::date_format("%Y"),
+               breaks = c(as.Date("2021-01-01"),as.Date("2022-01-01"),as.Date("2023-01-01"),as.Date("2024-01-01"),as.Date("2025-01-01")),
+               limits = c(as.Date("2020-11-01"), as.Date("2025-03-21"))) +
+  # scale_x_continuous(limits=c(2013-01-01,2025-01-01))+
+  #scale_x_continuous(breaks=c(2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025), labels=c("2013","2014","2015","2016","2017","2018","2019","2020","2021","2022","2023","2024","2025"),limits=c(2013,2025))+
+  labs(x="Year",y="Count",title="PSRP Python Removals 2021-2025",fill="Removal Method",color="none")+
+  theme_bw()+
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position="none",
+    plot.title = element_text(hjust = 0.5),
+    axis.line = element_line(colour = "black"),
+    #axis.text.x=element_blank(),
+    #axis.ticks.x=element_blank()
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  )+
+  guides(colour = "none")
+hist.mult.scout
+```
+
+<br>
+
+```{r PSRP seasonal removals, echo=FALSE, warning=FALSE,message=FALSE}
+
+#creating a seasonal removal plot
+season.summ<-removal_PSRP %>% group_by(season,Sex) %>% summarise(n=n())
+
+#releveling factors so male is first
+season.summ$Sex <- factor(season.summ$Sex, levels = c('Male', 'Female'))
+
+ggplot(data=season.summ,aes(x=season,y=n,fill=Sex))+
+  geom_bar(position="stack", stat="identity")+
+  labs(x="Season",y="Count",title="PSRP Seasonal Python Removals 2021-2025")+
+  scale_y_continuous(expand = expansion(mult = 0))+
+  scale_fill_manual(name='Sex',                                          
+                    breaks=c('Male','Female'),
+                    values=c('Male'="skyblue",'Female'="pink"))+
+  #scale_fill_viridis_d(option="turbo")+                                #specify viridis turbo palette
+  #scale_fill_manual(values=c("#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF"))+
+  theme_bw()+
+  theme(axis.text.x = element_text(size=10, angle=45,vjust = .5),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    #legend.position="none",
+    plot.title = element_text(hjust = 0.5),
+    axis.line = element_line(colour = "black"),
+    #axis.text.x=element_blank(),
+    #axis.ticks.x=element_blank()
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  )+
+  guides(colour = "none")
+
+ggsave(filename="PSRP.total.removal.barplot.jpg",width = 180, height = 180, dpi=300, units = "mm",path= "./images")
+
+```
+
+<br>
+
+```{r PSRP summary table of python stats, echo=FALSE, warning=FALSE,message=FALSE}
+# breeding season stats
+summ <-removal_PSRP %>% filter(removal_PSRP$day2<=184) %>% 
+  group_by(Sex) %>% 
+  summarise(n=n(),
+            mean.svl=mean(SVL_cm,na.rm=TRUE),
+            max.svl=max(SVL_cm,na.rm=TRUE),
+            min.svl=min(SVL_cm,na.rm=TRUE),
+            mean.lb=mean(Weight_lbs,na.rm=TRUE),
+            #mean.egg=mean(Egg.Count),
+            max.lb=max(Weight_lbs,na.rm=TRUE),
+            min.lb=min(Weight_lbs,na.rm=TRUE)) %>% 
+  arrange(desc(n))
+
+library(flextable)
+library(kableExtra)
+
+#create flextable of the data
+ft<-flextable(summ)
+
+#rename columns
+ft<-set_header_labels(ft,
+                      `Method_Grouped`="Method",
+                      n="Sample Size",
+                      mean.svl="Mean SVL (cm)",
+                      mean.lb="Mean Mass (lb)",
+                      #mean.egg="",
+                      max.svl="Max SVL (cm)",
+                      min.svl="Min SVL(cm)",
+                      max.lb="Max Mass (lb)",
+                      min.lb="Min Mass (lb)") %>% 
+  colformat_double(big.mark = ",", digits = 2, na_str = "N/A") %>% #round columns to 2 decimals
+  set_caption(as_paragraph("PSRP Python Removal Stats During Breeding Season (Oct.15-Apr.15) 2018-2025")) %>% 
+  autofit()
+
+
+#examine flex table
+ft
+```
+
+<br>
+ 
+# RBNERR Graphics
+
+<br>
+
+```{r RBNERR Boxplot of Python SVL by Sex, echo=FALSE, warning=FALSE,message=FALSE}
+##RBNERR Removal Graphics######################################################################################
+# add sample size column and create axis label column
+sample_size = removal_RBNERR %>% group_by(Sex) %>% summarize(num=n())
+
+removal_RBNERR<-removal_RBNERR %>%
+  left_join(sample_size) %>%
+  mutate(myaxis = as.factor(paste0(Sex, "\n", "n=", num))) %>% 
+  mutate( type=ifelse(Sex=="Male","Highlighted","Normal"))
+
+#releveling factors so road cruising is first
+removal_RBNERR$myaxis <- factor(removal_RBNERR$myaxis, levels = c('Female\nn=106', 'Male\nn=80'))
+
+#releveling factors so male is first
+#removal_RBNERR$Sex<-as.factor(removal_RBNERR$Sex)
+#removal_RBNERR$Sex<-factor(removal_RBNERR$Sex, levels = c("Male", "Female"))
+
+#boxplot of method by svl grouped by sex
+bp<-removal_RBNERR %>% 
+  filter(Sex!=is.na(Sex))%>%   #remove NA values from sex 
+  ggplot()+
+  aes(x=myaxis,y=SVL_cm, fill=Sex, na.rm=TRUE)+
+  geom_boxplot(width = 0.6,position = position_dodge(width = 0))+
+  geom_text(x=1.42, y=322.5, label="median SVL\n = 322.5 cm",size=3)+
+  geom_text(x=2.42, y=247, label="median SVL\n = 247 cm",size=3)+
+  scale_fill_viridis_d(option="turbo")+                                #specify viridis turbo palette
+  #scale_alpha_manual(values=c(1,0.1))+
+  labs(y="SVL (cm)",x="Sex",title="RBNERR Python Removals by Sex 2013-2025")+
+  scale_fill_manual(name='Sex',                                          
+                    breaks=c('Female','Male'),
+                    values=c('Female'="pink",'Male'="skyblue"))+
+  scale_alpha_manual(values=c(1,1))+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(size=10),   #change x axis text size
+        legend.position="none",
+        axis.title.y = element_text(size=15, vjust=2),
+        axis.title.x = element_text(size=15, vjust=-1),
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        plot.title = element_text(hjust = 0.5)
+  )
+
+bp
+ggsave(filename="RBNERR.boxplot.jpg",width = 180, height = 180, dpi=300, units = "mm",path= "./images")
+
+```
+
+<br>
+
+```{r RBNERR barplot of python removals by month, echo=FALSE, warning=FALSE,message=FALSE}
+# removals over time
+removal_RBNERR$Date<-as.Date(removal_RBNERR$Date,format="%Y-%m-%d")
+removal_RBNERR$month<-base::format(removal_RBNERR$Date, format="%B")
+
+#releveling month factors
+removal_RBNERR$month<-as.factor(removal_RBNERR$month)
+removal_RBNERR$month<-factor(removal_RBNERR$month, levels = c("January", "February","March","April","May","June","July","August","September","October","November","December"))
+
+
+
+hist.m<-removal_RBNERR %>% 
+  ggplot(aes(x=month,fill="brown",color="black"))+
+  geom_histogram(stat="count")+
+  scale_x_discrete(drop=FALSE) + 
+  scale_fill_discrete(drop=FALSE) +
+  scale_fill_manual(values="#7A0403FF")+
+  scale_color_manual(values="black")+
+  scale_y_continuous(expand =  expansion(mult = c(0, 0.05)))+
+  labs(x="Month",y="Count",title="RBNERR Python Removals by Month 2013-2025")+
+  theme_bw()+
+  theme(axis.text.x = element_text(size=10, angle=45,vjust = .5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position="none",
+        plot.title = element_text(hjust = 0.5),
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+hist.m
+
+
+```
+
+<br>
+
+```{r RBNERR barplot of breeding season python removal, echo=FALSE, warning=FALSE,message=FALSE}
+
+removal_RBNERR$day<-yday(removal_RBNERR$Date)
+
+
+removal_RBNERR$day<-as.numeric(removal_RBNERR$day)
+removal_RBNERR$day2<-ifelse(removal_RBNERR$day>=288,(removal_RBNERR$day-288),(removal_RBNERR$day+78))
+removal_RBNERR$day2<-as.numeric(removal_RBNERR$day2)
+
+
+hist.y<-removal_RBNERR %>% filter(removal_RBNERR$day2<=184) %>% 
+  ggplot(aes(x=day2,fill="brown",color="black"))+
+  geom_histogram(binwidth=7)+
+  #scale_x_discrete()+
+  #scale_x_discrete(drop=FALSE) +
+  scale_fill_discrete(drop=FALSE) +
+  scale_fill_manual(values="#7A0403FF")+
+  scale_color_manual(values="black")+
+  scale_y_continuous(expand =  expansion(mult = c(0, 0.05)))+
+  scale_x_continuous(breaks=c(1,32,61,93,124,153,184), labels=c("Oct. 15","Nov.15","Dec.15","Jan.15","Feb.15","Mar.15","Apr.15"),limits=c(1,190))+
+  labs(x="Day",y="Count",title="RBNERR Python Removals by Calendar Day 2013-2025")+
+  theme_bw()+
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position="none",
+    plot.title = element_text(hjust = 0.5),
+    axis.line = element_line(colour = "black"),
+    #axis.text.x=element_blank(),
+    #axis.ticks.x=element_blank()
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  )
+hist.y
+ggsave(filename="RBNERR.histogram.jpg",width = 180, height = 180, dpi=300, units = "mm",path= "./images")
+
+```
+
+<br>
+
+```{r RBNERR histogram of python removals across years, echo=FALSE, warning=FALSE,message=FALSE}
+hist.mult.scout<-removal_RBNERR %>% filter( removal_RBNERR$Date>2013-01-01) %>% 
+  ggplot(aes(x=Date,fill="#7A0403FF",color="black"))+
+  geom_histogram(binwidth=61,width=75)+
+  #scale_x_discrete()+
+  #scale_x_discrete(drop=FALSE) +
+  scale_fill_discrete(drop=FALSE) +
+  scale_fill_manual(values="#7A0403FF")+                                #specify viridis turbo palette
+  scale_color_manual(values="black")+
+  scale_y_continuous(expand =  expansion(mult = c(0, 0.05)))+
+  scale_x_date(labels = scales::date_format("%Y"),
+               breaks = c(as.Date("2013-01-01"),as.Date("2014-01-01"),as.Date("2015-01-01"),as.Date("2016-01-01"),as.Date("2017-01-01"),as.Date("2018-01-01"),as.Date("2019-01-01"),as.Date("2020-01-01"),as.Date("2021-01-01"),as.Date("2022-01-01"),as.Date("2023-01-01"),as.Date("2024-01-01"),as.Date("2025-01-01")),
+               limits = c(as.Date("2013-01-01"), as.Date("2025-03-21"))) +
+  # scale_x_continuous(limits=c(2013-01-01,2025-01-01))+
+  #scale_x_continuous(breaks=c(2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025), labels=c("2013","2014","2015","2016","2017","2018","2019","2020","2021","2022","2023","2024","2025"),limits=c(2013,2025))+
+  labs(x="Year",y="Count",title="RBNERR Python Removals 2013-2025",fill="Removal Method",color="none")+
+  theme_bw()+
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position="none",
+    plot.title = element_text(hjust = 0.5),
+    axis.line = element_line(colour = "black"),
+    #axis.text.x=element_blank(),
+    #axis.ticks.x=element_blank()
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  )+
+  guides(colour = "none")
+hist.mult.scout
+```
+
+<br>
+
+```{r RBNERR seasonal removals, echo=FALSE, warning=FALSE,message=FALSE}
+#creating a seasonal removal plot
+season.summ<-removal_RBNERR %>% group_by(season,Sex) %>% summarise(n=n())
+
+#releveling factors so male is first
+season.summ$Sex <- factor(season.summ$Sex, levels = c('Male', 'Female'))
+
+ggplot(data=season.summ,aes(x=season,y=n,fill=Sex))+
+  geom_bar(position="stack", stat="identity")+
+  labs(x="Season",y="Count",title="RBNERR Seasonal Python Removals 2013-2025")+
+  scale_y_continuous(expand = expansion(mult = 0))+
+  scale_fill_manual(name='Sex',                                          
+                    breaks=c('Male','Female'),
+                    values=c('Male'="skyblue",'Female'="pink"))+
+  #scale_fill_viridis_d(option="turbo")+                                #specify viridis turbo palette
+  #scale_fill_manual(values=c("#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF","#7A0403FF"))+
+  theme_bw()+
+  theme(axis.text.x = element_text(size=10, angle=45,vjust = .5),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    #legend.position="none",
+    plot.title = element_text(hjust = 0.5),
+    axis.line = element_line(colour = "black"),
+    #axis.text.x=element_blank(),
+    #axis.ticks.x=element_blank()
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  )+
+  guides(colour = "none")
+ggsave(filename="RBNERR.total.removal.barplot.jpg",width = 180, height = 180, dpi=300, units = "mm",path= "./images")
+
+```
+
+<br>
+
+```{r RBNERR summary table of python stats, echo=FALSE, warning=FALSE,message=FALSE}
+
+# breeding season stats
+summ <-removal_RBNERR %>% filter(removal_RBNERR$day2<=184) %>% 
+  group_by(Sex) %>% 
+  summarise(n=n(),
+            mean.svl=mean(SVL_cm,na.rm=TRUE),
+            max.svl=max(SVL_cm,na.rm=TRUE),
+            min.svl=min(SVL_cm,na.rm=TRUE),
+            mean.lb=mean(Weight_lbs,na.rm=TRUE),
+            #mean.egg=mean(Egg.Count),
+            max.lb=max(Weight_lbs,na.rm=TRUE),
+            min.lb=min(Weight_lbs,na.rm=TRUE)) %>% 
+  arrange(desc(n))
+
+#create flextable of the data
+ft<-flextable(summ)
+
+#rename columns
+ft<-set_header_labels(ft,
+                      `Method_Grouped`="Method",
+                      n="Sample Size",
+                      mean.svl="Mean SVL (cm)",
+                      mean.lb="Mean Mass (lb)",
+                      #mean.egg="",
+                      max.svl="Max SVL (cm)",
+                      min.svl="Min SVL(cm)",
+                      max.lb="Max Mass (lb)",
+                      min.lb="Min Mass (lb)") %>% 
+  colformat_double(big.mark = ",", digits = 2, na_str = "N/A") %>% #round columns to 2 decimals
+  set_caption(as_paragraph("RBNERR Python Removal Stats During Breeding Season (Oct.15-Apr.15) 2013-2025")) %>% 
+  autofit()
+
+
+#examine flex table
+ft
+```
